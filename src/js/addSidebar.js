@@ -19,13 +19,6 @@ function makeSidebarContent() {
 
 	document.getElementById('main-column').className += ' mcen-main-column';
 
-	const recordingURLdata = getRecordingData()[courseName];
-	const monthToSemester = getMonthToSemester();
-	const wikinotesURLdata = getWikinotesData()[courseName];
-	const docuumURLdata = getDocuumData()[courseName];
-
-	const vsbSidebarTerms = [];
-	getVSBSemesters(vsbSidebarTerms);
 	const withinyearRangeVSB = (sysYear==urlYearF) || (sysYear==urlYearW && sysMonth<9);
 
 	const courseTermsElem = document.getElementsByClassName('catalog-terms')[0];
@@ -50,7 +43,7 @@ function makeSidebarContent() {
 			vsbURL: 'https://vsb.mcgill.ca/vsb/criteria.jsp?term=' + urlYearW + '01&course_0_0=' + courseSubject + '-' + courseNumber + '&ca_0_0=&bbs='
 		} );
 	}
-	if (courseTerms.match(termNames[lang][05])) {
+	if (courseTerms.match(termNames[lang][5])) {
 		courseTermsCodes.push( {
 			term: 'summer',
 			name: 'Summer ' + urlYearW,  
@@ -61,7 +54,38 @@ function makeSidebarContent() {
 	logForDebug(courseTermsCodes);
 
 	const newContent = document.getElementById('main-column').innerHTML;
-	const courses = newContent.match(/[A-Z]{3,4}[0-9]{0,1}\s[0-9]{3}[A-Za-z]{0,1}[0-9]{0,1}/g);
+	const deps = getCourseSubjectsFromContent(newContent);
+
+	const sidebar = document.createElement('div');
+	sidebar.className += ' mcen-sidebar';
+	sidebar.id = 'sidebar-column';
+
+	sidebar.appendChild(generateSidebarLinksBlock(courseTermsCodes, deps, {
+		withinYearRangeVSB: withinyearRangeVSB,
+		includeRelatedPrograms: true
+	}));
+
+	// remove oldSidebarContainerDiv
+	if (document.getElementById('sidebar-column')) {
+		const oldSidebarContainerDiv = document.getElementById('sidebar-column');
+		oldSidebarContainerDiv.parentNode.removeChild(oldSidebarContainerDiv); 
+	}
+
+
+
+	// insert enhanced sidebar
+	document.getElementById('inner-container').appendChild(sidebar);
+
+	sidebarTooltipsy('minervaWarning');
+}
+
+
+/**
+ * Collect the unique set of subject codes referenced anywhere in the given content
+ * @param contentHTML: HTML string to scan for course codes
+ */
+function getCourseSubjectsFromContent(contentHTML) {
+	const courses = contentHTML.match(/[A-Z]{3,4}[0-9]{0,1}\s[0-9]{3}[A-Za-z]{0,1}[0-9]{0,1}/g);
 	const depsDup = [courseSubject];
 	if (courses) {
 		for (let c=0; c<courses.length; c++) {
@@ -69,18 +93,33 @@ function makeSidebarContent() {
 		}
 	}
 	logForDebug(depsDup);
-	const deps = depsDup.filter(function(elem, pos) {
+	return depsDup.filter(function(elem, pos) {
 		return depsDup.indexOf(elem) === pos;
 	});
+}
 
 
-	const sidebar = document.createElement('div');
-	sidebar.className += ' mcen-sidebar';
-	sidebar.id = 'sidebar-column';
+/**
+ * Build the McGill Enhanced sidebar links block.
+ * Page-agnostic: callers supply the term codes and subject codes to render.
+ * @param courseTermsCodes: array of {term, name, code, vsbURL}
+ * @param deps: array of subject codes to list under RELATED
+ * @param options: {withinYearRangeVSB, includeCourseSubjects, includeRelatedPrograms}
+ *        each defaults to true; pass false to suppress that section
+ */
+function generateSidebarLinksBlock(courseTermsCodes, deps, options) {
+	options = options || {};
+	const withinyearRangeVSB = options.withinYearRangeVSB !== false;
+
+	const recordingURLdata = getRecordingData()[courseName];
+	const monthToSemester = getMonthToSemester();
+	const wikinotesURLdata = getWikinotesData()[courseName];
+
+	const vsbSidebarTerms = [];
+	getVSBSemesters(vsbSidebarTerms);
 
 	const sidebarLinksBlock = document.createElement('div');  
 	sidebarLinksBlock.className += ' mcen-sidebarLinksBlock';  
-	sidebar.appendChild(sidebarLinksBlock);
 
 
 	//SIDEBAR SUPER SECTION (YEAR SPECIFIC)
@@ -128,11 +167,12 @@ function makeSidebarContent() {
 	const courseEval = generateSidebarSection('Course Reviews');
 	sidebarLinksBlock.appendChild(courseEval);
 
-	if (docuumURLdata) { 
-		const docuumURL = 'http://www.docuum.com/McGill/review/read_course/' + docuumURLdata;
-		const docuumButtonString = 'Docuum Course Reviews';
-		courseEval.appendChild(generateSidebarLink(docuumURL, 'mcen-blue', docuumButtonString, false));
-	}
+	// docuum.com is dead; mcgill.courses hosts the course reviews now.
+	// Its course route is /course/<subject>-<number>, lowercased. Both this and the
+	// mycookies link below are keyed by course code, so they need no dataset lookup.
+	const reviewsURL = 'https://mcgill.courses/course/' + (courseSubject + '-' + courseNumber).toLowerCase();
+	const reviewsButtonString = 'mcgill.courses Course Reviews';
+	courseEval.appendChild(generateSidebarLink(reviewsURL, 'mcen-blue', reviewsButtonString, false));
 
 	const mercuryURL = 'https://horizon.mcgill.ca/pban1/bzskmcer.p_display_form?form_mode=ar&subj_tab_in='+courseSubject+'&crse_in='+courseNumber;
 	const mercuryButtonString = 'Mercury Course Evaluations';
@@ -157,22 +197,18 @@ function makeSidebarContent() {
 	}
 
 
-	if ( docuumURLdata || wikinotesURLdata) {
+	//SIDEBAR SECTION: OTHER RESOURCES
+	const other = generateSidebarSection('Other Resources');
+	sidebarLinksBlock.appendChild(other);
 
-		//SIDEBAR SECTION: OTHER RESOURCES
-		const other = generateSidebarSection('Other Resources');
-		sidebarLinksBlock.appendChild(other);
-	
-		if (docuumURLdata) {
-			const docuumURL = 'https://mycookies.ca/course/' + courseName;
-			const docuumButtonString = courseNameSpaced + ' on Docuum';
-			other.appendChild(generateSidebarLink(docuumURL, 'mcen-blue', docuumButtonString, false));
-		}
-		if (wikinotesURLdata) {
-			const wikinotesURL = 'https://www.wikinotes.ca/' + wikinotesURLdata;
-			const wikinotesButtonString = courseNameSpaced + ' on Wikinotes';
-			other.appendChild(generateSidebarLink(wikinotesURL, 'mcen-white', wikinotesButtonString, false));
-		}
+	const mycookiesURL = 'https://mycookies.ca/course/' + courseName;
+	const mycookiesButtonString = courseNameSpaced + ' on MyCookies';
+	other.appendChild(generateSidebarLink(mycookiesURL, 'mcen-blue', mycookiesButtonString, false));
+
+	if (wikinotesURLdata) {
+		const wikinotesURL = 'https://www.wikinotes.ca/' + wikinotesURLdata;
+		const wikinotesButtonString = courseNameSpaced + ' on Wikinotes';
+		other.appendChild(generateSidebarLink(wikinotesURL, 'mcen-white', wikinotesButtonString, false));
 	}
 
 	sidebarLinksBlock.appendChild(document.createElement('br'));
@@ -180,7 +216,9 @@ function makeSidebarContent() {
 	//SIDEBAR SUPER SECTION (RELATED)
 	sidebarLinksBlock.appendChild(generateSidebarSectionSeparator('RELATED'));
 
-	if (deps.length > 0) {
+	// The Course Catalogue has no per-subject course listing, so this section is
+	// suppressed there (options.includeCourseSubjects === false).
+	if (options.includeCourseSubjects !== false && deps.length > 0) {
 
 		//SIDEBAR SECTION: RELATED COURSES
 		const relatedCourses = generateSidebarSection('Course Subjects');
@@ -193,7 +231,7 @@ function makeSidebarContent() {
 		}	
 	}
 
-	if (document.getElementsByClassName('view-catalog-program').length > 0) {
+	if (options.includeRelatedPrograms && document.getElementsByClassName('view-catalog-program').length > 0) {
 
 		//SIDEBAR SECTION: RELATED PROGRAMS
 		const relatedPrograms = generateSidebarSection('Related Programs');
@@ -207,24 +245,7 @@ function makeSidebarContent() {
 		relatedPrograms.appendChild(relatedProgramsList);
 	}
 
-	// remove oldSidebarContainerDiv
-	if (document.getElementById('sidebar-column')) {
-		const oldSidebarContainerDiv = document.getElementById('sidebar-column');
-		oldSidebarContainerDiv.parentNode.removeChild(oldSidebarContainerDiv); 
-	}
-
-
-
-	// insert enhanced sidebar
-	document.getElementById('inner-container').appendChild(sidebar);
-
-	sidebarTooltipsy('minervaWarning');
-
-}
-
-
-function calcOldestAvailableTerm(currentTermYear, currentTermMonth) {
-	return translateToTermCode(currentTermYear-1, currentTermMonth);
+	return sidebarLinksBlock;
 }
 
 
@@ -279,12 +300,12 @@ function generateSidebarLink(url, colorClass, buttonValue, minervaWarning) {
 		sidebarLink.title = 'Must be already signed into Minerva!';
 		sidebarLink.className = 'minervaWarning';
 	}
-	sidebarLink.appendChild(generateSidebarLinkButton(colorClass, buttonValue, minervaWarning));
+	sidebarLink.appendChild(generateSidebarLinkButton(colorClass, buttonValue));
 	return sidebarLink;
 }
 
 
-function generateSidebarLinkButton(colorClass, buttonValue, minervaWarning ) {
+function generateSidebarLinkButton(colorClass, buttonValue) {
 	const linkButton = document.createElement('button');
 	linkButton.className = 'form-submit mcen-linkButton ' + colorClass;
 	linkButton.innerText = buttonValue;
@@ -300,7 +321,7 @@ function sidebarTooltipsy(className, offset) {
 	$('.' + className).tooltipsy( {
 		delay: 1000,
 		offset: offset,
-		hide: function (e, $el) {
+		hide: function (_e, $el) {
 			$el.slideUp(50);
 		},
 		css: {
@@ -363,10 +384,5 @@ function disableVSBSidebarTerm(termCode) {
 	else {
 		vsbSidebarButton.parentElement.title = 'This term is not yet available in VSB!';
 	}
-}
-
-
-function translateToTermCode(year, month) {
-	return '' + year + monthAsTwoDigitString(month);
 }
 

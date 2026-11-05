@@ -2,7 +2,7 @@
   "name": "McGill Enhanced",
   "author": "kozirisdev",
   "manifest_version": 3,
-  "version": "4.4.7",
+  "version": "4.5.0",
   "description": "Enhance the functionality of McGill.ca",
   "permissions": [
     "storage"
@@ -67,7 +67,8 @@
         "js/addScheduleExporter.js",
         "js/addOneClickVSBRegistration.js",
         "js/addVSBClassLinks.js",
-        "js/initEnhancement.js"
+        "js/initEnhancement.js",
+        "js/addCourseCatalogue.js"
       ]
     }
   ],
@@ -77,6 +78,7 @@
         "css/sidebar.css",
         "css/yearMenu.css",
         "css/aveCrowdsource.css",
+        "css/courseCatalogue.css",
         "css/profLinks.css",
         "css/programs.css",
         "css/vsb.css",
