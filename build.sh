@@ -59,6 +59,20 @@ ZIP_ARGS=("css" "images" "js" "lib" "menu" "manifest.json")
 today=$(date '+%Y.%m.%d_%H.%M.%S')
 version=$(grep '"version":' "$MANIFEST_FILE" | grep -o '[0-9]\+\(\.[0-9]\+\)\+')
 
+# Portable in-place sed. BSD sed (macOS) wants `-i ''`, GNU sed (Linux) rejects
+# that. Rewriting through a temp file works on both, and unlike `sed -i.bak` it
+# never clobbers the manifest backup when several substitutions are chained.
+sed_inplace() {
+  local expr="$1" file="$2" tmp
+  tmp=$(mktemp)
+  sed "$expr" "$file" > "$tmp" && cat "$tmp" > "$file"
+  rm -f "$tmp"
+}
+
+# Restore the manifest if the build dies part-way through; with `set -e` a failed
+# substitution would otherwise leave the Firefox/BETA edits in the source tree.
+trap 'if [ -f "$MANIFEST_FILE.bak" ]; then mv -f "$MANIFEST_FILE.bak" "$MANIFEST_FILE"; fi' EXIT
+
 # Clean build directory if requested
 if [ "$CLEAN_BUILD" -eq 1 ]; then
   echo "$0: Clearing $BUILD_DIR directory"
@@ -90,13 +104,13 @@ for platform in "$@"; do
   fi
 
   if [ "$platform" == "firefox" ]; then
-    sed -i '' '1s/{/{\n  "browser_specific_settings": {"gecko": {"id": "{fbd3b601-613b-4747-a92b-4d37b2fd7667}"}},/' "$MANIFEST_FILE"
-  	sed -i '' 's/"service_worker": "js\/serviceWorker.js"/"scripts": ["js\/serviceWorker.js"]/g' "$MANIFEST_FILE"
+    sed_inplace '1s/{/{\n  "browser_specific_settings": {"gecko": {"id": "{fbd3b601-613b-4747-a92b-4d37b2fd7667}"}},/' "$MANIFEST_FILE"
+    sed_inplace 's/"service_worker": "js\/serviceWorker.js"/"scripts": ["js\/serviceWorker.js"]/g' "$MANIFEST_FILE"
   fi
 
   if [ "$BUILD_BETA" -eq 1 ]; then
-    sed -i '' 's/"description": "Enhance the functionality of McGill\.ca"/"description": "THIS EXTENSION IS FOR BETA TESTING. Enhance the functionality of McGill.ca"/g' "$MANIFEST_FILE"
-    sed -i '' 's/"name": "McGill Enhanced"/"name": "McGill Enhanced BETA"/g' "$MANIFEST_FILE"
+    sed_inplace 's/"description": "Enhance the functionality of McGill\.ca"/"description": "THIS EXTENSION IS FOR BETA TESTING. Enhance the functionality of McGill.ca"/g' "$MANIFEST_FILE"
+    sed_inplace 's/"name": "McGill Enhanced"/"name": "McGill Enhanced BETA"/g' "$MANIFEST_FILE"
   fi
 
   # zip from within src so that manifest is at root of zip rather than in at src/manfiest 
